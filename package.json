@@ -1,8 +1,23 @@
 {
-  "name": "altegio-mcp",
+  "name": "mcp-altegio",
   "version": "1.0.0",
-  "description": "MCP server for Altegio API",
+  "description": "MCP-сервер для Altegio API — записи, клиенты, услуги, расписание",
   "type": "module",
+  "license": "MIT",
+  "author": "moro3k",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moro3k/mcp-altegio.git"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "altegio",
+    "booking",
+    "spa",
+    "crm",
+    "ai-tools"
+  ],
   "scripts": {
     "start": "bun run src/index.ts"
   },
