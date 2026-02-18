@@ -224,18 +224,37 @@ Bun автоматически подтягивает `.env` из директо
 ```
 mcp-altegio/
 ├── src/
-│   ├── api.ts      # HTTP-клиент (авторизация, подстановка company_id)
-│   └── index.ts    # MCP-сервер, регистрация 18 инструментов
-├── .env.example    # Шаблон переменных окружения
+│   ├── index.ts      # MCP-сервер, регистрация 18 инструментов
+│   ├── api.ts        # HTTP-клиент (авторизация, подстановка company_id)
+│   └── helpers.ts    # Вспомогательные функции (поиск, фильтры)
+├── tests/
+│   ├── helpers.test.ts  # Тесты хелперов (39 тестов)
+│   ├── api.test.ts      # Тесты HTTP-клиента (37 тестов)
+│   └── server.test.ts   # Интеграционные тесты MCP (55 тестов)
+├── .env.example
 ├── package.json
 ├── tsconfig.json
 └── LICENSE
 ```
 
+## Тесты
+
+131 тест с покрытием всех инструментов и бизнес-логики:
+
+```bash
+bun test
+```
+
+Тесты включают:
+- **Unit-тесты** — автоопределение типа поиска (телефон/email/имя), фильтрация сотрудников и записей
+- **Тесты API-клиента** — HTTP-методы, авторизация, query-параметры, обработка ошибок
+- **Интеграционные тесты MCP** — регистрация инструментов, схемы, вызов через SDK клиент
+
 ## Стек
 
 - **Runtime**: [Bun](https://bun.sh/) 1.x
 - **SDK**: [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) 1.26 — `registerTool` API, `zod/v4`
+- **Тесты**: Bun Test (встроенный раннер, 131 тест)
 - **Язык**: TypeScript
 - **Transport**: stdio
 

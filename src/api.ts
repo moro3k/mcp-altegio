@@ -3,19 +3,24 @@
 
 const BASE_URL = "https://api.alteg.io/api/v1";
 
-// Переменные окружения для авторизации
-const token = process.env.ALTEGIO_TOKEN;
-const userToken = process.env.ALTEGIO_USER_TOKEN;
-const companyId = process.env.ALTEGIO_COMPANY_ID;
+// Ленивое чтение конфига — позволяет переопределять env в тестах
+function getConfig() {
+  const token = process.env.ALTEGIO_TOKEN;
+  const userToken = process.env.ALTEGIO_USER_TOKEN;
+  const companyId = process.env.ALTEGIO_COMPANY_ID;
 
-if (!token || !userToken || !companyId) {
-  throw new Error(
-    "Missing env: ALTEGIO_TOKEN, ALTEGIO_USER_TOKEN, ALTEGIO_COMPANY_ID"
-  );
+  if (!token || !userToken || !companyId) {
+    throw new Error(
+      "Missing env: ALTEGIO_TOKEN, ALTEGIO_USER_TOKEN, ALTEGIO_COMPANY_ID"
+    );
+  }
+
+  return { token, userToken, companyId };
 }
 
 // Заголовки авторизации: Bearer (партнёрский) + User (пользовательский) токены
-function headers(): Record<string, string> {
+export function headers(): Record<string, string> {
+  const { token, userToken } = getConfig();
   return {
     Authorization: `Bearer ${token}, User ${userToken}`,
     Accept: "application/vnd.api.v2+json",
@@ -24,8 +29,9 @@ function headers(): Record<string, string> {
 }
 
 // Подстановка company_id в шаблон пути
-function resolvePath(path: string): string {
-  return path.replace("{company_id}", companyId!);
+export function resolvePath(path: string): string {
+  const { companyId } = getConfig();
+  return path.replace("{company_id}", companyId);
 }
 
 // Универсальный обработчик запросов
@@ -77,5 +83,3 @@ export function altegioPut(path: string, body: unknown) {
 export function altegioDelete(path: string) {
   return request("DELETE", path);
 }
-
-export { companyId };

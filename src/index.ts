@@ -2,8 +2,15 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import * as z from "zod/v4";
 import { altegioGet, altegioPost, altegioPut, altegioDelete } from "./api.js";
+import {
+  detectSearchType,
+  filterActiveStaff,
+  filterByApiId,
+  formatToolResponse,
+  formatTextResponse,
+} from "./helpers.js";
 
-const server = new McpServer({
+export const server = new McpServer({
   name: "altegio",
   version: "1.0.0",
 });
@@ -34,7 +41,7 @@ server.registerTool("get_records", {
     page,
     count,
   });
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return formatToolResponse(data);
 });
 
 server.registerTool("get_records_by_client", {
@@ -58,7 +65,7 @@ server.registerTool("get_records_by_client", {
     page,
     count,
   });
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return formatToolResponse(data);
 });
 
 // Поиск записей по api_id — фильтрация на стороне сервера,
@@ -77,19 +84,10 @@ server.registerTool("get_records_by_visit", {
     count: 200,
   });
   const records = Array.isArray(data) ? data : [];
-  const filtered = records.filter(
-    (r: any) => String(r.api_id) === String(api_id)
-  );
-  return {
-    content: [
-      {
-        type: "text",
-        text: filtered.length
-          ? JSON.stringify(filtered, null, 2)
-          : `Записи с api_id=${api_id} на ${date} не найдены`,
-      },
-    ],
-  };
+  const filtered = filterByApiId(records, api_id);
+  return filtered.length
+    ? formatToolResponse(filtered)
+    : formatTextResponse(`Записи с api_id=${api_id} на ${date} не найдены`);
 });
 
 server.registerTool("create_record", {
@@ -136,7 +134,7 @@ server.registerTool("create_record", {
   },
 }, async (args) => {
   const data = await altegioPost("/records/{company_id}", args);
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return formatToolResponse(data);
 });
 
 // Высокоуровневый инструмент бронирования — автоматически ставит save_if_busy и api_id
@@ -182,7 +180,7 @@ server.registerTool("book_service", {
     send_sms,
     save_if_busy: true,
   });
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return formatToolResponse(data);
 });
 
 server.registerTool("update_record", {
@@ -214,7 +212,7 @@ server.registerTool("update_record", {
     `/records/{company_id}/${record_id}`,
     body
   );
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return formatToolResponse(data);
 });
 
 server.registerTool("delete_record", {
@@ -224,7 +222,7 @@ server.registerTool("delete_record", {
   },
 }, async ({ record_id }) => {
   const data = await altegioDelete(`/records/{company_id}/${record_id}`);
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return formatToolResponse(data);
 });
 
 // --- Клиенты (Clients) ---
@@ -242,14 +240,10 @@ server.registerTool("search_clients", {
       .describe("Кол-во на страницу (default 20)"),
   },
 }, async ({ query, page, count }) => {
-  const isPhone = /^\+?\d[\d\s\-()]{5,}$/.test(query.trim());
-  const isEmail = query.includes("@");
-  const params: Record<string, unknown> = { page, count };
-  if (isPhone) params.phone = query.trim();
-  else if (isEmail) params.email = query.trim();
-  else params.fullname = query.trim();
+  const { field, value } = detectSearchType(query);
+  const params: Record<string, unknown> = { page, count, [field]: value };
   const data = await altegioGet("/clients/{company_id}", params);
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return formatToolResponse(data);
 });
 
 server.registerTool("get_client", {
@@ -259,7 +253,7 @@ server.registerTool("get_client", {
   },
 }, async ({ client_id }) => {
   const data = await altegioGet(`/client/{company_id}/${client_id}`);
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return formatToolResponse(data);
 });
 
 server.registerTool("create_client", {
@@ -271,7 +265,7 @@ server.registerTool("create_client", {
   },
 }, async (args) => {
   const data = await altegioPost("/clients/{company_id}", args);
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return formatToolResponse(data);
 });
 
 server.registerTool("update_client", {
@@ -284,7 +278,7 @@ server.registerTool("update_client", {
   },
 }, async ({ client_id, ...body }) => {
   const data = await altegioPut(`/client/{company_id}/${client_id}`, body);
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return formatToolResponse(data);
 });
 
 // --- Услуги (Services) ---
@@ -312,14 +306,14 @@ server.registerTool("get_services", {
     page,
     count,
   });
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return formatToolResponse(data);
 });
 
 server.registerTool("get_service_categories", {
   description: "Категории услуг компании",
 }, async () => {
   const data = await altegioGet("/company/{company_id}/service_categories");
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return formatToolResponse(data);
 });
 
 // --- Сотрудники (Staff) ---
@@ -338,14 +332,9 @@ server.registerTool("get_staff", {
 }, async ({ active_only }) => {
   const data = await altegioGet("/company/{company_id}/staff");
   if (active_only && Array.isArray(data)) {
-    const active = data.filter(
-      (s: any) => s.fired !== 1 && s.fired !== true
-    );
-    return {
-      content: [{ type: "text", text: JSON.stringify(active, null, 2) }],
-    };
+    return formatToolResponse(filterActiveStaff(data));
   }
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return formatToolResponse(data);
 });
 
 server.registerTool("get_staff_member", {
@@ -355,7 +344,7 @@ server.registerTool("get_staff_member", {
   },
 }, async ({ staff_id }) => {
   const data = await altegioGet(`/staff/{company_id}/${staff_id}`);
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return formatToolResponse(data);
 });
 
 // --- Расписание (Schedule) ---
@@ -379,7 +368,7 @@ server.registerTool("get_available_times", {
     `/book_times/{company_id}/${staff_id}/${date}`,
     params
   );
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return formatToolResponse(data);
 });
 
 server.registerTool("get_available_dates", {
@@ -395,7 +384,7 @@ server.registerTool("get_available_dates", {
     date_from,
     date_to,
   });
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return formatToolResponse(data);
 });
 
 // --- Финансы (Transactions) ---
@@ -419,7 +408,7 @@ server.registerTool("get_transactions", {
     page,
     count,
   });
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  return formatToolResponse(data);
 });
 
 // --- Запуск сервера ---
@@ -429,7 +418,10 @@ async function main() {
   await server.connect(transport);
 }
 
-main().catch((err) => {
-  console.error("Failed to start altegio MCP server:", err);
-  process.exit(1);
-});
+// Запуск только при прямом вызове (не при импорте в тестах)
+if (import.meta.main) {
+  main().catch((err) => {
+    console.error("Failed to start altegio MCP server:", err);
+    process.exit(1);
+  });
+}
