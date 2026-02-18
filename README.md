@@ -60,15 +60,25 @@ MCP-сервер для [Altegio API](https://api.alteg.io/). Даёт AI-асс
 
 ## Требования
 
-- [Bun](https://bun.sh/) >= 1.0
+- [Bun](https://bun.sh/) >= 1.0 **или** [Docker](https://www.docker.com/)
 - Партнёрский и пользовательский токены Altegio API
 
 ## Установка
+
+### Bun (локально)
 
 ```bash
 git clone https://github.com/moro3k/mcp-altegio.git
 cd mcp-altegio
 bun install
+```
+
+### Docker
+
+```bash
+git clone https://github.com/moro3k/mcp-altegio.git
+cd mcp-altegio
+docker build -t mcp-altegio .
 ```
 
 ## Настройка
@@ -148,6 +158,32 @@ Settings → MCP Servers → Add new server:
   }
 }
 ```
+
+### Docker
+
+Подключение через Docker — не нужно устанавливать Bun:
+
+```json
+{
+  "mcpServers": {
+    "altegio": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm",
+        "-e", "ALTEGIO_TOKEN",
+        "-e", "ALTEGIO_USER_TOKEN",
+        "-e", "ALTEGIO_COMPANY_ID",
+        "mcp-altegio"],
+      "env": {
+        "ALTEGIO_TOKEN": "...",
+        "ALTEGIO_USER_TOKEN": "...",
+        "ALTEGIO_COMPANY_ID": "..."
+      }
+    }
+  }
+}
+```
+
+> **Важно**: флаг `-i` обязателен — MCP работает через stdio.
 
 ### Переменные окружения
 
