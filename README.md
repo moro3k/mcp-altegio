@@ -7,7 +7,7 @@ MCP-сервер для [Altegio API](https://developer.alteg.io/api) — упр
 [![Bun](https://img.shields.io/badge/Bun-1.x-f9f1e1?logo=bun&logoColor=black)](https://bun.sh)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ed?logo=docker&logoColor=white)](Dockerfile)
 [![MCP SDK](https://img.shields.io/badge/MCP_SDK-1.26-green?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiI+PHRleHQgeD0iMCIgeT0iMTMiIGZvbnQtc2l6ZT0iMTQiPuKamjwvdGV4dD48L3N2Zz4=)](https://github.com/modelcontextprotocol/typescript-sdk)
-[![Tests](https://img.shields.io/badge/Tests-131_passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-141_passing-brightgreen)](tests/)
 
 ## Возможности
 
@@ -15,7 +15,7 @@ MCP-сервер для [Altegio API](https://developer.alteg.io/api) — упр
 - **CRUD-операции** — полный цикл создания, чтения, обновления и удаления записей и клиентов
 - **Умный поиск** — автоопределение типа запроса (телефон, email, имя)
 - **Docker-образ** — multi-stage build на Alpine (~184MB), готов к продакшну
-- **131 тест** — unit, API-клиент, интеграционные MCP-тесты
+- **141 тест** — unit, API-клиент, интеграционные MCP-тесты
 - **stdio-транспорт** — работает с Claude Desktop, Claude Code, Cursor, VS Code Copilot
 
 ## Инструменты
@@ -215,7 +215,7 @@ Settings → MCP Servers → Add new server:
 ```bash
 bun install     # Установить зависимости
 bun run start   # Запустить сервер
-bun test        # Запустить тесты (131 тест)
+bun test        # Запустить тесты (141 тест)
 ```
 
 ### Структура проекта
@@ -233,7 +233,7 @@ tests/
 
 ### Тесты
 
-131 тест с покрытием всех инструментов:
+141 тест с покрытием всех инструментов:
 
 - **Unit** — автоопределение типа поиска, фильтрация сотрудников и записей
 - **API-клиент** — HTTP-методы, авторизация, query-параметры, обработка ошибок
