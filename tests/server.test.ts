@@ -84,9 +84,10 @@ describe("метаданные сервера", () => {
     expect(info?.name).toBe("altegio");
   });
 
-  it("версия сервера из package.json", () => {
+  it("версия сервера из package.json", async () => {
+    const pkg = await import("../package.json");
     const info = client.getServerVersion();
-    expect(info?.version).toBe("1.1.0");
+    expect(info?.version).toBe(pkg.version);
   });
 });
 
