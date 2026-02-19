@@ -8,11 +8,13 @@ import {
   filterByApiId,
   formatToolResponse,
   formatTextResponse,
+  formatErrorResponse,
 } from "./helpers.js";
+import pkg from "../package.json";
 
 export const server = new McpServer({
   name: "altegio",
-  version: "1.0.0",
+  version: pkg.version,
 });
 
 // --- Записи (Records) ---
@@ -33,15 +35,19 @@ server.registerTool("get_records", {
       .describe("Кол-во на страницу (default 50, max 200)"),
   },
 }, async ({ start_date, end_date, staff_id, client_id, page, count }) => {
-  const data = await altegioGet("/records/{company_id}", {
-    start_date,
-    end_date,
-    staff_id,
-    client_id,
-    page,
-    count,
-  });
-  return formatToolResponse(data);
+  try {
+    const data = await altegioGet("/records/{company_id}", {
+      start_date,
+      end_date,
+      staff_id,
+      client_id,
+      page,
+      count,
+    });
+    return formatToolResponse(data);
+  } catch (e) {
+    return formatErrorResponse(e);
+  }
 });
 
 server.registerTool("get_records_by_client", {
@@ -58,18 +64,23 @@ server.registerTool("get_records_by_client", {
       .describe("Кол-во на страницу (default 50)"),
   },
 }, async ({ client_id, start_date, end_date, page, count }) => {
-  const data = await altegioGet("/records/{company_id}", {
-    client_id,
-    start_date,
-    end_date,
-    page,
-    count,
-  });
-  return formatToolResponse(data);
+  try {
+    const data = await altegioGet("/records/{company_id}", {
+      client_id,
+      start_date,
+      end_date,
+      page,
+      count,
+    });
+    return formatToolResponse(data);
+  } catch (e) {
+    return formatErrorResponse(e);
+  }
 });
 
-// Поиск записей по api_id — фильтрация на стороне сервера,
-// потому что Altegio API не поддерживает фильтр по api_id
+// Поиск записей по api_id — фильтрация на стороне клиента,
+// потому что Altegio API не поддерживает фильтр по api_id.
+// Загружает все страницы за дату, чтобы не пропустить записи.
 server.registerTool("get_records_by_visit", {
   description:
     "Найти все Altegio-записи привязанные к визиту по api_id. Загружает записи за дату и фильтрует (api_id=0 значит не привязана)",
@@ -78,16 +89,28 @@ server.registerTool("get_records_by_visit", {
     date: z.string().describe("Дата записи (YYYY-MM-DD)"),
   },
 }, async ({ api_id, date }) => {
-  const data = await altegioGet("/records/{company_id}", {
-    start_date: date,
-    end_date: date,
-    count: 200,
-  });
-  const records = Array.isArray(data) ? data : [];
-  const filtered = filterByApiId(records, api_id);
-  return filtered.length
-    ? formatToolResponse(filtered)
-    : formatTextResponse(`Записи с api_id=${api_id} на ${date} не найдены`);
+  try {
+    const allRecords: Record<string, unknown>[] = [];
+    let page = 1;
+    while (true) {
+      const data = await altegioGet("/records/{company_id}", {
+        start_date: date,
+        end_date: date,
+        count: 200,
+        page,
+      });
+      const batch = Array.isArray(data) ? data : [];
+      allRecords.push(...batch);
+      if (batch.length < 200) break;
+      page++;
+    }
+    const filtered = filterByApiId(allRecords, api_id);
+    return filtered.length
+      ? formatToolResponse(filtered)
+      : formatTextResponse(`Записи с api_id=${api_id} на ${date} не найдены`);
+  } catch (e) {
+    return formatErrorResponse(e);
+  }
 });
 
 server.registerTool("create_record", {
@@ -133,8 +156,12 @@ server.registerTool("create_record", {
       .describe("Создать даже при конфликте времени (default true)"),
   },
 }, async (args) => {
-  const data = await altegioPost("/records/{company_id}", args);
-  return formatToolResponse(data);
+  try {
+    const data = await altegioPost("/records/{company_id}", args);
+    return formatToolResponse(data);
+  } catch (e) {
+    return formatErrorResponse(e);
+  }
 });
 
 // Высокоуровневый инструмент бронирования — автоматически ставит save_if_busy и api_id
@@ -169,18 +196,22 @@ server.registerTool("book_service", {
   comment,
   send_sms,
 }) => {
-  const data = await altegioPost("/records/{company_id}", {
-    staff_id,
-    services: [{ id: service_id }],
-    client: { name: client_name, phone: client_phone },
-    datetime,
-    seance_length,
-    api_id: visit_id,
-    comment,
-    send_sms,
-    save_if_busy: true,
-  });
-  return formatToolResponse(data);
+  try {
+    const data = await altegioPost("/records/{company_id}", {
+      staff_id,
+      services: [{ id: service_id }],
+      client: { name: client_name, phone: client_phone },
+      datetime,
+      seance_length,
+      api_id: visit_id,
+      comment,
+      send_sms,
+      save_if_busy: true,
+    });
+    return formatToolResponse(data);
+  } catch (e) {
+    return formatErrorResponse(e);
+  }
 });
 
 server.registerTool("update_record", {
@@ -208,11 +239,18 @@ server.registerTool("update_record", {
       .describe("Статус: -1=отменён, 0=ожидается, 1=подтверждён, 2=пришёл"),
   },
 }, async ({ record_id, ...body }) => {
-  const data = await altegioPut(
-    `/records/{company_id}/${record_id}`,
-    body
-  );
-  return formatToolResponse(data);
+  try {
+    if (Object.keys(body).filter((k) => body[k as keyof typeof body] !== undefined).length === 0) {
+      return formatErrorResponse("Укажите хотя бы одно поле для обновления");
+    }
+    const data = await altegioPut(
+      `/records/{company_id}/${record_id}`,
+      body
+    );
+    return formatToolResponse(data);
+  } catch (e) {
+    return formatErrorResponse(e);
+  }
 });
 
 server.registerTool("delete_record", {
@@ -221,8 +259,12 @@ server.registerTool("delete_record", {
     record_id: z.number().describe("ID записи"),
   },
 }, async ({ record_id }) => {
-  const data = await altegioDelete(`/records/{company_id}/${record_id}`);
-  return formatToolResponse(data);
+  try {
+    const data = await altegioDelete(`/records/{company_id}/${record_id}`);
+    return formatToolResponse(data);
+  } catch (e) {
+    return formatErrorResponse(e);
+  }
 });
 
 // --- Клиенты (Clients) ---
@@ -240,10 +282,18 @@ server.registerTool("search_clients", {
       .describe("Кол-во на страницу (default 20)"),
   },
 }, async ({ query, page, count }) => {
-  const { field, value } = detectSearchType(query);
-  const params: Record<string, unknown> = { page, count, [field]: value };
-  const data = await altegioGet("/clients/{company_id}", params);
-  return formatToolResponse(data);
+  try {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      return formatErrorResponse("Поисковый запрос не может быть пустым");
+    }
+    const { field, value } = detectSearchType(trimmed);
+    const params: Record<string, unknown> = { page, count, [field]: value };
+    const data = await altegioGet("/clients/{company_id}", params);
+    return formatToolResponse(data);
+  } catch (e) {
+    return formatErrorResponse(e);
+  }
 });
 
 server.registerTool("get_client", {
@@ -252,8 +302,12 @@ server.registerTool("get_client", {
     client_id: z.number().describe("ID клиента"),
   },
 }, async ({ client_id }) => {
-  const data = await altegioGet(`/client/{company_id}/${client_id}`);
-  return formatToolResponse(data);
+  try {
+    const data = await altegioGet(`/client/{company_id}/${client_id}`);
+    return formatToolResponse(data);
+  } catch (e) {
+    return formatErrorResponse(e);
+  }
 });
 
 server.registerTool("create_client", {
@@ -264,8 +318,12 @@ server.registerTool("create_client", {
     email: z.string().optional().describe("Email"),
   },
 }, async (args) => {
-  const data = await altegioPost("/clients/{company_id}", args);
-  return formatToolResponse(data);
+  try {
+    const data = await altegioPost("/clients/{company_id}", args);
+    return formatToolResponse(data);
+  } catch (e) {
+    return formatErrorResponse(e);
+  }
 });
 
 server.registerTool("update_client", {
@@ -277,8 +335,15 @@ server.registerTool("update_client", {
     email: z.string().optional().describe("Email"),
   },
 }, async ({ client_id, ...body }) => {
-  const data = await altegioPut(`/client/{company_id}/${client_id}`, body);
-  return formatToolResponse(data);
+  try {
+    if (Object.keys(body).filter((k) => body[k as keyof typeof body] !== undefined).length === 0) {
+      return formatErrorResponse("Укажите хотя бы одно поле для обновления");
+    }
+    const data = await altegioPut(`/client/{company_id}/${client_id}`, body);
+    return formatToolResponse(data);
+  } catch (e) {
+    return formatErrorResponse(e);
+  }
 });
 
 // --- Услуги (Services) ---
@@ -300,20 +365,28 @@ server.registerTool("get_services", {
       .describe("Кол-во на страницу (default 50)"),
   },
 }, async ({ staff_id, category_id, page, count }) => {
-  const data = await altegioGet("/company/{company_id}/services", {
-    staff_id,
-    category_id,
-    page,
-    count,
-  });
-  return formatToolResponse(data);
+  try {
+    const data = await altegioGet("/company/{company_id}/services", {
+      staff_id,
+      category_id,
+      page,
+      count,
+    });
+    return formatToolResponse(data);
+  } catch (e) {
+    return formatErrorResponse(e);
+  }
 });
 
 server.registerTool("get_service_categories", {
   description: "Категории услуг компании",
 }, async () => {
-  const data = await altegioGet("/company/{company_id}/service_categories");
-  return formatToolResponse(data);
+  try {
+    const data = await altegioGet("/company/{company_id}/service_categories");
+    return formatToolResponse(data);
+  } catch (e) {
+    return formatErrorResponse(e);
+  }
 });
 
 // --- Сотрудники (Staff) ---
@@ -330,11 +403,15 @@ server.registerTool("get_staff", {
       .describe("Только активные (не уволенные) сотрудники (default true)"),
   },
 }, async ({ active_only }) => {
-  const data = await altegioGet("/company/{company_id}/staff");
-  if (active_only && Array.isArray(data)) {
-    return formatToolResponse(filterActiveStaff(data));
+  try {
+    const data = await altegioGet("/company/{company_id}/staff");
+    if (active_only && Array.isArray(data)) {
+      return formatToolResponse(filterActiveStaff(data));
+    }
+    return formatToolResponse(data);
+  } catch (e) {
+    return formatErrorResponse(e);
   }
-  return formatToolResponse(data);
 });
 
 server.registerTool("get_staff_member", {
@@ -343,8 +420,12 @@ server.registerTool("get_staff_member", {
     staff_id: z.number().describe("ID сотрудника"),
   },
 }, async ({ staff_id }) => {
-  const data = await altegioGet(`/staff/{company_id}/${staff_id}`);
-  return formatToolResponse(data);
+  try {
+    const data = await altegioGet(`/staff/{company_id}/${staff_id}`);
+    return formatToolResponse(data);
+  } catch (e) {
+    return formatErrorResponse(e);
+  }
 });
 
 // --- Расписание (Schedule) ---
@@ -360,15 +441,19 @@ server.registerTool("get_available_times", {
       .describe("ID услуг для расчёта длительности"),
   },
 }, async ({ staff_id, date, service_ids }) => {
-  const params: Record<string, unknown> = {};
-  if (service_ids?.length) {
-    params.service_ids = service_ids.join(",");
+  try {
+    const params: Record<string, unknown> = {};
+    if (service_ids?.length) {
+      params.service_ids = service_ids.join(",");
+    }
+    const data = await altegioGet(
+      `/book_times/{company_id}/${staff_id}/${date}`,
+      params
+    );
+    return formatToolResponse(data);
+  } catch (e) {
+    return formatErrorResponse(e);
   }
-  const data = await altegioGet(
-    `/book_times/{company_id}/${staff_id}/${date}`,
-    params
-  );
-  return formatToolResponse(data);
 });
 
 server.registerTool("get_available_dates", {
@@ -379,12 +464,16 @@ server.registerTool("get_available_dates", {
     date_to: z.string().optional().describe("По дату (YYYY-MM-DD)"),
   },
 }, async ({ staff_id, date_from, date_to }) => {
-  const data = await altegioGet("/book_dates/{company_id}", {
-    staff_id,
-    date_from,
-    date_to,
-  });
-  return formatToolResponse(data);
+  try {
+    const data = await altegioGet("/book_dates/{company_id}", {
+      staff_id,
+      date_from,
+      date_to,
+    });
+    return formatToolResponse(data);
+  } catch (e) {
+    return formatErrorResponse(e);
+  }
 });
 
 // --- Финансы (Transactions) ---
@@ -402,13 +491,17 @@ server.registerTool("get_transactions", {
       .describe("Кол-во на страницу (default 50)"),
   },
 }, async ({ start_date, end_date, page, count }) => {
-  const data = await altegioGet("/transactions/{company_id}", {
-    start_date,
-    end_date,
-    page,
-    count,
-  });
-  return formatToolResponse(data);
+  try {
+    const data = await altegioGet("/transactions/{company_id}", {
+      start_date,
+      end_date,
+      page,
+      count,
+    });
+    return formatToolResponse(data);
+  } catch (e) {
+    return formatErrorResponse(e);
+  }
 });
 
 // --- Запуск сервера ---

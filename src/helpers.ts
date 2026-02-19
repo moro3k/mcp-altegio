@@ -55,3 +55,15 @@ export function formatTextResponse(text: string) {
     content: [{ type: "text" as const, text }],
   };
 }
+
+/**
+ * Формирует ответ с ошибкой MCP-инструмента.
+ */
+export function formatErrorResponse(error: unknown) {
+  const message =
+    error instanceof Error ? error.message : String(error);
+  return {
+    content: [{ type: "text" as const, text: message }],
+    isError: true,
+  };
+}

@@ -5,6 +5,7 @@ import {
   filterByApiId,
   formatToolResponse,
   formatTextResponse,
+  formatErrorResponse,
 } from "../src/helpers";
 
 // --- detectSearchType ---
@@ -286,5 +287,27 @@ describe("formatTextResponse", () => {
   it("сохраняет unicode", () => {
     const result = formatTextResponse("Привет, мир! 🌍");
     expect(result.content[0].text).toBe("Привет, мир! 🌍");
+  });
+});
+
+// --- formatErrorResponse ---
+
+describe("formatErrorResponse", () => {
+  it("оборачивает Error в isError ответ", () => {
+    const result = formatErrorResponse(new Error("API timeout"));
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toBe("API timeout");
+  });
+
+  it("оборачивает строку в isError ответ", () => {
+    const result = formatErrorResponse("что-то пошло не так");
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toBe("что-то пошло не так");
+  });
+
+  it("оборачивает число в isError ответ", () => {
+    const result = formatErrorResponse(404);
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toBe("404");
   });
 });

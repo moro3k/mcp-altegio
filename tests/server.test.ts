@@ -84,9 +84,9 @@ describe("метаданные сервера", () => {
     expect(info?.name).toBe("altegio");
   });
 
-  it("версия сервера = 1.0.0", () => {
+  it("версия сервера из package.json", () => {
     const info = client.getServerVersion();
-    expect(info?.version).toBe("1.0.0");
+    expect(info?.version).toBe("1.1.0");
   });
 });
 
@@ -520,5 +520,116 @@ describe("вызов инструментов", () => {
     const url = fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0] as string;
     expect(url).toContain("client_id=42");
     expect(url).toContain("start_date=2026-01-01");
+  });
+});
+
+// --- Обработка ошибок ---
+
+describe("обработка ошибок в инструментах", () => {
+  it("API-ошибка → isError: true с сообщением", async () => {
+    fetchMock = mock(() =>
+      Promise.resolve(
+        new Response("Unauthorized", {
+          status: 401,
+          headers: { "Content-Type": "text/plain" },
+        })
+      )
+    );
+    globalThis.fetch = fetchMock as any;
+
+    const result = await client.callTool({
+      name: "get_records",
+      arguments: { start_date: "2026-01-01", end_date: "2026-01-31" },
+    });
+
+    expect(result.isError).toBe(true);
+    const text = (result.content as any)[0].text;
+    expect(text).toContain("401");
+  });
+
+  it("search_clients с пустым query → isError", async () => {
+    const result = await client.callTool({
+      name: "search_clients",
+      arguments: { query: "   " },
+    });
+
+    expect(result.isError).toBe(true);
+    const text = (result.content as any)[0].text;
+    expect(text).toContain("пустым");
+  });
+
+  it("update_record без полей для обновления → isError", async () => {
+    const result = await client.callTool({
+      name: "update_record",
+      arguments: { record_id: 123 },
+    });
+
+    expect(result.isError).toBe(true);
+    const text = (result.content as any)[0].text;
+    expect(text).toContain("хотя бы одно поле");
+  });
+
+  it("update_client без полей для обновления → isError", async () => {
+    const result = await client.callTool({
+      name: "update_client",
+      arguments: { client_id: 42 },
+    });
+
+    expect(result.isError).toBe(true);
+    const text = (result.content as any)[0].text;
+    expect(text).toContain("хотя бы одно поле");
+  });
+
+  it("update_record с полями → работает", async () => {
+    setFetchResponse({});
+
+    const result = await client.callTool({
+      name: "update_record",
+      arguments: { record_id: 123, attendance: 2 },
+    });
+
+    expect(result.isError).toBeUndefined();
+  });
+
+  it("update_client с полями → работает", async () => {
+    setFetchResponse({});
+
+    const result = await client.callTool({
+      name: "update_client",
+      arguments: { client_id: 42, name: "Новое имя" },
+    });
+
+    expect(result.isError).toBeUndefined();
+  });
+});
+
+// --- Пагинация get_records_by_visit ---
+
+describe("пагинация get_records_by_visit", () => {
+  it("загружает несколько страниц", async () => {
+    let callCount = 0;
+    fetchMock = mock(() => {
+      callCount++;
+      const records =
+        callCount === 1
+          ? Array.from({ length: 200 }, (_, i) => ({ id: i, api_id: i === 5 ? 42 : 0 }))
+          : [{ id: 300, api_id: 42 }];
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({ success: true, data: records }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      );
+    });
+    globalThis.fetch = fetchMock as any;
+
+    const result = await client.callTool({
+      name: "get_records_by_visit",
+      arguments: { api_id: 42, date: "2026-01-15" },
+    });
+
+    const parsed = JSON.parse((result.content as any)[0].text);
+    expect(parsed).toHaveLength(2);
+    expect(fetchMock.mock.calls.length).toBe(2);
   });
 });
