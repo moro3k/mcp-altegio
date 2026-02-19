@@ -10,6 +10,7 @@ RUN bun install --frozen-lockfile --production
 FROM base AS release
 COPY --from=install /app/node_modules ./node_modules
 COPY src ./src
-COPY tsconfig.json .
+COPY tsconfig.json package.json ./
 USER bun
+EXPOSE 3000
 CMD ["bun", "run", "src/index.ts"]

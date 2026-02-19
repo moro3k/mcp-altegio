@@ -16,6 +16,7 @@ MCP-сервер для [Altegio API](https://developer.alteg.io/api) — упр
 - **Умный поиск** — автоопределение типа запроса (телефон, email, имя)
 - **Docker-образ** — multi-stage build на Alpine (~184MB), готов к продакшну
 - **141 тест** — unit, API-клиент, интеграционные MCP-тесты
+- **Dual transport** — stdio (локально) и Streamable HTTP (удалённо, Smithery, облако)
 - **stdio-транспорт** — работает с Claude Desktop, Claude Code, Cursor, VS Code Copilot
 
 ## Инструменты
@@ -194,6 +195,36 @@ Settings → MCP Servers → Add new server:
 
 > Bun автоматически подтягивает `.env` из директории `cwd`. Можно использовать `.env` файл вместо передачи переменных напрямую.
 
+### HTTP-транспорт (Streamable HTTP)
+
+Для облачных деплоев и Smithery используйте HTTP-режим:
+
+```bash
+# Локально
+bun run start:http
+
+# Docker
+docker run --rm -p 3000:3000 \
+  -e ALTEGIO_TOKEN=ваш_токен \
+  -e ALTEGIO_USER_TOKEN=ваш_токен \
+  -e ALTEGIO_COMPANY_ID=12345 \
+  mcp-altegio bun run src/http.ts
+```
+
+Сервер слушает на порту `3000` (переопределяется через `PORT`). Endpoint: `POST /mcp`.
+
+Подключение через URL:
+
+```json
+{
+  "mcpServers": {
+    "altegio": {
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}
+```
+
 ## Примеры
 
 ```
@@ -222,7 +253,9 @@ bun test        # Запустить тесты (141 тест)
 
 ```
 src/
-  index.ts      # MCP-сервер, регистрация 18 инструментов
+  server.ts     # Фабрика MCP-сервера, регистрация 18 инструментов
+  index.ts      # Точка входа stdio
+  http.ts       # Точка входа HTTP (Streamable HTTP)
   api.ts        # HTTP-клиент (авторизация, подстановка company_id)
   helpers.ts    # Вспомогательные функции (поиск, фильтры)
 tests/
@@ -249,7 +282,7 @@ tests/
 | Валидация | Zod v4 |
 | Тесты | Bun Test |
 | Контейнер | Docker (Alpine) |
-| Transport | stdio |
+| Transport | stdio, Streamable HTTP |
 
 ## Особенности Altegio API
 

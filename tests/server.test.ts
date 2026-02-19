@@ -27,7 +27,7 @@ setFetchResponse([]);
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { server } from "../src/index";
+import { createServer } from "../src/server";
 
 let client: Client;
 
@@ -58,6 +58,7 @@ beforeAll(async () => {
     InMemoryTransport.createLinkedPair();
   client = new Client({ name: "test-client", version: "1.0.0" });
 
+  const server = createServer();
   await server.connect(serverTransport);
   await client.connect(clientTransport);
 });
